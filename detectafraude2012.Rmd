@@ -1,0 +1,350 @@
+---
+title: "ANALIZADOR ELECTORAL"
+author: 'Por: Analista de Datos'
+output: html_document
+---
+"No es la gente que vota la que cuenta, sino la que cuenta los votos", Joseph Stalin
+
+Este programa hace un analisis estadistico de los resultados de las elecciones generales del 16 de mayo DEL 2012
+
+```{r , echo=FALSE, cache=FALSE}
+
+format(Sys.time(), "%b %d %Y %X")
+
+```
+
+
+
+# 1. Resultados Electorales Generales (boletin XX)
+
+```{r leedatosygrafica, echo=FALSE, cache=FALSE, fig.width=10}
+
+# opts_chunk$set(comment=NA, fig.width=6, fig.height=6))
+
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(benford.analysis) # para pruebas de Benford
+library(BenfordTests)
+library(psych) # para calculo de sesgo y kurtosis
+library(gplots)  # Para graficar heatmaps
+
+
+inicia <- proc.time()      # Momento de inicio del proceso
+
+data <- read.csv("SIMPATIAS2012.csv", header= TRUE, sep =",")
+data <- data.frame(data)
+partido <- data$PARTIDO
+indice <- c(27,28,29,30)        # elementos a ser removidos de vectores
+
+# partido <- partido[-indice]
+
+datos <- read.csv("ELECCIONES2012.csv",  header= TRUE, sep =",") # Lee resultados electorales
+datos <- data.frame(datos) ; datos <- subset(datos, datos$Colegio!=9999) # extrae registros de nulos
+
+#  resumen_gral <- colSums(datos[13:34]) # resumen general incluye nulos
+
+resumen_part <- colSums(datos[13:36]) # resumen de partidos
+
+regral <- data.frame(resumen_part)
+regralv <- regral$resumen_part
+VOTOS <- formatC(regralv, format="f", big.mark = ',', digits = 0)
+
+porcregral <- regralv /sum(regralv)
+PORCENTAJE <- formatC(porcregral*100, format="f", big.mark = ',', digits = 2)
+
+PARTIDOS <- data.frame(partido)
+colnames(PARTIDOS) <- "PARTIDOS"
+salida <- cbind(PARTIDOS, VOTOS,PORCENTAJE)
+
+formato <- salida[1:12,]
+formato <- cbind(formato,salida[13:24,])
+
+knitr::kable(formato)  # Imprime tabla de resultados con formato
+
+paste("Total Votos Validos: ",  formatC(sum(regralv), format="f", big.mark = ',', digits = 0))
+
+# Hace grafica de Barras
+
+
+# Crea data frame con resultados de partidos
+
+grafpart <- PARTIDOS ; PORCENTAJE <- regral$resumen_part/sum(regralv)*100
+grafpart <- cbind(grafpart,PORCENTAJE) 
+
+   # par(mai=c(1,2,0,1))  # Especifica margenes para las figuras
+
+
+
+g1 <- qplot(PARTIDOS,PORCENTAJE, data = grafpart ) + geom_bar(fill="orange", stat="identity") + labs(title="Resultados Electorales")  + coord_flip() 
+
+
+grupo_PRD <- sum(datos$PRD)+ sum(datos$DXC)+ sum(datos$FRENTE)
+grupo_PLD <- sum(datos$PLD) + sum(datos$PPC)+ sum(datos$PRI)+ sum(datos$UDC)+ sum(datos$PAL)+ sum(datos$PDP)+ sum(datos$MODA)+ sum(datos$PASOVE)+ sum(datos$BIS)+ sum(datos$PCR)+ sum(datos$PTD)+ sum(datos$PDI) + sum(datos$PRSC) + sum(datos$PHD)
+grupo_ALPAIS <- sum(datos$ALPAIS) 
+
+OTROS <- sum(resumen_part) - grupo_ALPAIS - grupo_PLD - grupo_PRD
+Porcentaje <- c(grupo_PRD,grupo_PLD,grupo_ALPAIS,OTROS)/sum(resumen_part)*100
+
+GRUPOS <- c("PRD","PLD","ALPAIS","OTROS")
+grafpart <- data.frame(GRUPOS, Porcentaje)
+g2 <- qplot(GRUPOS,Porcentaje, data = grafpart) + geom_bar(stat="identity",fill= "lightblue") + labs(title="Resultados por Alianzas")  + geom_text(label=round(Porcentaje,2)) 
+
+
+grid.arrange(g2, g1, ncol=2, widths = c(1,1.2))
+
+# barplot(grupos, xlab="ALIANZAS", names.arg = c("PRM","PLD","Alianza Pais", "Otros"),ylim=c(0,65),ylab="% de Votacion por Alianzas", col=c("blue","magenta","lightgreen","gray"), angle=c(45,-45,45,-45), density=20)
+
+
+
+```
+
+
+## 1.1 Votacion por provincia
+
+```{r provincia, echo=FALSE, cache=FALSE}
+
+resumen_prov <- apply(datos[,c(13:36)], 2, function(x) tapply(x, datos$Provincia, sum)) # resumen de partidos por provincias
+
+
+
+resumen_prov <- formatC(resumen_prov, format="f", big.mark = ',', digits = 0)
+knitr::kable(resumen_prov)  # Imprime tabla de resultados con formato
+
+
+```
+
+
+
+
+## 1.2 Mapa de provincias ganadas por coalisión de partidos
+
+# 2. Comparacion con  elecciones 2008,2010 y 2012
+
+
+# 3. Proyeccion de Resultados
+
+## 3.1 Diagrama de radar de boletines
+## 3.2 Diagrama paralelo de boletines
+
+# 4. Pruebas de deteccion de fraude
+
+## 4.1 Pruebas de Benford 
+### 4.1.1 Prueba de Benford para el Colegio (PLD)
+
+```{r benfordcolegio, echo=FALSE, cache=FALSE }
+
+
+pruebaPLD <- benford(as.numeric(datos$PLD))
+plot(pruebaPLD)
+pruebaPLD$stats
+chisq.benftest(as.numeric(datos$PLD))
+
+# sospecha <- getSuspects(pruebaPLD, datos, by="absolute.diff", how.many=2)
+# sospecha
+
+ks.benftest(as.numeric(datos$PLD), digits = 1, pvalmethod = "simulate", pvalsims = 10000)
+
+mdist.benftest(as.numeric(datos$PLD), digits = 1, pvalmethod = "simulate", pvalsims = 10000)
+
+usq.benftest(as.numeric(datos$PLD), digits = 1, pvalmethod = "simulate", pvalsims = 10000)
+
+signifd.analysis(as.numeric(datos$PLD), digits = 1, graphical_analysis = TRUE, freq = FALSE,
+alphas = 20, tick_col = "red", ci_col = "darkgreen", ci_lines = c(.05))
+
+usq.benftest(as.numeric(datos$PLD), digits = 1, pvalmethod = "simulate", pvalsims = 10000)
+
+```
+
+### 4.1.2 Prueba de Benford para el Recinto (PLD)
+```{r benfordrecinto, echo=FALSE, cache=FALSE}
+
+resumen_recinto <- apply(datos[,c(13:36)], 2, function(x) tapply(x, datos$Recinto.Electoral , sum)) # resumen de partidos por recinto
+
+rec <- data.frame(resumen_recinto)
+pruebaPLD <- benford(as.numeric(rec$PLD))
+plot(pruebaPLD)
+pruebaPLD$stats
+# sospecha <- getSuspects(pruebaPLD, rec, by="absolute.diff", how.many=2)
+# sospecha
+
+chisq.benftest(as.numeric(rec$PLD))
+
+ks.benftest(as.numeric(rec$PLD), digits = 1, pvalmethod = "simulate", pvalsims = 10000)
+
+mdist.benftest(as.numeric(rec$PLD), digits = 1, pvalmethod = "simulate", pvalsims = 10000)
+
+usq.benftest(as.numeric(rec$PLD), digits = 1, pvalmethod = "simulate", pvalsims = 10000)
+
+signifd.analysis(as.numeric(rec$PLD), digits = 1, graphical_analysis = TRUE, freq = FALSE,
+alphas = 20, tick_col = "red", ci_col = "darkgreen", ci_lines = c(.05))
+
+
+
+```
+
+## 4.2 Prueba de correlacion entre partidos
+
+```{r prueba correlacion entre partidos, echo=FALSE, cache=FALSE, fig.width=10  }
+
+
+c1 <- cor(datos$PLD,datos$PRD) ; correla <- as.character(formatC(c1, format="f", big.mark=',',digits=3))
+
+correla <- paste("Coef.: ",correla)
+
+g1 <- qplot(PLD, PRD, data = datos, col=PLD<PRD) + geom_smooth(se = F) + labs(title="Correlacion por Colegio")   + annotate(geom="text", x=30, y=200, label=correla, color="blue") + theme(legend.position = "bottom")
+
+
+PRD <- datos$PRD + datos$DXC+ datos$FRENTE
+PLD <- datos$PLD +  datos$PPC +  datos$UDC+ datos$PAL + datos$PDP+ datos$MODA+ datos$PASOVE+ datos$BIS+ datos$PCR+ datos$PTD+ datos$PDI + datos$PRSC + datos$PHD
+
+alianzas <- data.frame(PLD,PRD)
+
+c2 <- cor(alianzas$PLD,alianzas$PRD);correla <- as.character(formatC(c2, format="f", big.mark=',',digits=3))
+correla <- paste("Coef.: ",correla)
+
+g2 <- qplot(PLD, PRD, data = alianzas, col=PLD<PRD) + geom_smooth(se = F) + labs(title="Correlacion por Colegio y Alianzas")  + annotate(geom="text", x=30, y=200, label=correla, color="blue") + theme(legend.position = "bottom")
+
+grid.arrange(g1, g2, ncol=2)
+
+```
+
+
+
+## 4.3 Pruebas de Sesgo y Curtosis
+
+```{r sego y curtosis, echo=FALSE, cache=FALSE, fig.width=10}
+
+# suma la votacion valida en cada colegio y la agrega como columna al vector de colegios
+
+votoscol <-transform(datos, suma=rowSums(datos[13:36]))        # agrega columna de suma votos por colegio
+votoscol <- subset(votoscol, votoscol$TotInscritos > 100) # Extrae solo colegios de tamano apropiado
+votoscol <- subset(votoscol, votoscol$PLD>0) # Extrae solo colegios con votacion PLD
+
+# para grafica del LVR comparado con la dist normal
+LVRN <- rnorm(nrow(votoscol))  # Numeros aleatorios con distribucion normal
+
+LVR <- log((votoscol$suma - votoscol$PLD)/votoscol$PLD) # Logarithmic vote rate
+LVR <- (LVR-mean(LVR))/sd(LVR)
+
+graflog <- data.frame(LVR,LVRN)
+
+
+g1 <- ggplot() + geom_density(data = graflog, aes(x=LVR), colour='red') +
+                 geom_density(data = graflog, aes(x=LVRN), colour='black')  +
+                 labs(title="Logarithmic Vote Rate (PLD)") +
+                 annotate(geom="text", x=2.5, y=0.3, label="LVR Esperado", color="black")+
+                 annotate(geom="text", x=2.7, y=0.25, label="LVR Encontrado", color="red")
+
+
+
+paste("Sesgo PLD (0 mejor): ", as.character(skew(graflog$LVR)))
+paste("Curtosis PLD (0 mejor): ", as.character(kurtosi(graflog$LVR)))
+
+# Las mismas pruebas para el PRM
+
+votoscol <- subset(votoscol, votoscol$PRD>0) # Extrae solo colegios con votacion PLD
+
+# para grafica del LVR comparado con la dist normal
+LVRN <- rnorm(nrow(votoscol))  # Numeros aleatorios con distribucion normal
+
+LVR <- log((votoscol$suma - votoscol$PRD)/votoscol$PRD) # Logarithmic vote rate
+LVR <- (LVR-mean(LVR))/sd(LVR)
+
+graflog <- data.frame(LVR,LVRN)
+
+
+g2 <- ggplot() + geom_density(data = graflog, aes(x=LVR), colour='red') +
+                 geom_density(data = graflog, aes(x=LVRN), colour='black')  +
+                 labs(title="Logarithmic Vote Rate (PRD)") +
+                 annotate(geom="text", x=2.5, y=0.3, label="LVR Esperado", color="black")+
+                 annotate(geom="text", x=2.7, y=0.25, label="LVR Encontrado", color="red")
+
+
+
+paste("Sesgo PRD (0 mejor): ", as.character(skew(graflog$LVR)))
+paste("Curtosis PRD (0 mejor): ", as.character(kurtosi(graflog$LVR)))
+
+grid.arrange(g1, g2,ncol=2)
+
+
+```
+
+
+## 4.3 Fingerprint Test
+
+```{r Fingerprint Test, echo=FALSE, cache=FALSE, fig.width=10}
+
+PORCPLD <- votoscol$PLD/votoscol$suma*100               # Porcentaje de votos del PLD
+PORCASIS <- votoscol$suma/votoscol$TotInscritos*100  # Porcentaje de asistencia
+
+graflog <- data.frame(PORCPLD,PORCASIS)
+
+
+g1 <- ggplot(graflog, aes(PORCASIS,PORCPLD)) + geom_bin2d(binwidth=c(0.5,0.5)) + labs(title="Fingerprint Test (PLD)")  + xlim(0,100) + ylim(0,100) +
+    ylab("% Votacion PLD") + xlab("% de Asistencia") + theme(legend.position = "bottom")
+
+
+
+# grafica para el PRM
+
+PORCPRD <- votoscol$PRD/votoscol$suma*100               # Porcentaje de votos del PRM
+PORCASIS <- votoscol$suma/votoscol$TotInscritos *100  # Porcentaje de asistencia
+
+graflog <- data.frame(PORCPRD,PORCASIS)
+
+
+g2 <- ggplot(graflog, aes(PORCASIS,PORCPRD)) + geom_bin2d(binwidth=c(0.5,0.5)) + labs(title="Fingerprint Test (PRD)")  + xlim(0,100) + ylim(0,100) +
+    ylab("% Votacion PRD") + xlab("% de Asistencia") + theme(legend.position = "bottom")
+
+grid.arrange(g1, g2, ncol=2)
+
+# Grafica de % asistencia y % votacion acumulada
+
+PLDa <- cumsum(votoscol$PLD) ; PRDa <- cumsum(votoscol$PRD) ; ASISa <- cumsum(votoscol$TotInscritos)
+PLDa <- PLDa/ASISa*100 ; PRDa <- PRDa/ASISa*100 
+PLDa <- sort(PLDa,decreasing = FALSE); PRDa <- sort(PRDa, decreasing = FALSE)
+PORCASISa <- sort(PORCASIS,decreasing = FALSE)
+
+graflog <- data.frame(PLDa,PRDa,PORCASISa)
+
+
+g3 <- ggplot() + geom_line(data = graflog, aes(x=PORCASISa, y=PLDa), colour='magenta') +
+                 geom_line(data = graflog, aes(x=PORCASISa, y=PRDa), colour='blue')  +
+                 labs(title="% Votacion acumulada vs % Asistencia PLD-PRD")+    xlab("% Asistencia") + ylab("% de Votacion Acumulada") + annotate(geom="text", x=25, y=28, label="PLD",color="magenta")+ annotate(geom="text", x=25, y=30, label="PRD", color="blue")
+
+ 
+g3
+
+
+# Grafico de abstencion y %PLD y %PRM
+int <- seq(0, 100, by = 10)
+
+PRD <-tapply(PORCPRD, cut(PORCASIS, int), mean)
+PLD <-tapply(PORCPLD, cut(PORCASIS, int), mean)
+zz <- data.frame(PRD,PLD) 
+rownames(zz) <- c("0-10","10-20","20-30","30-40","40-50","50-60","60-70","70-80","80-90","90-100")
+
+barplot(t(zz), beside=T, ylab="% Votacion", xlab="% de Asistencia", main="Votacion promedio por % de Asistencia", legend.text = c("PRD", "PLD"), cex.names=0.8, las=2, ylim=c(0,100), col=c("blue","magenta"))
+  box(bty="l")
+
+
+
+```
+
+
+
+
+
+```{r, echo=FALSE}
+
+duracion <- proc.time() - inicia
+ m <- matrix(duracion)
+ min <- formatC(m[3]/60, format="f", big.mark=',',digits=2)     # Duracion del proceso en minutos
+ tiempo <- paste0(" Duracion del proceso: ",min," Minutos")
+ tiempo
+ 
+```
+
+
+
