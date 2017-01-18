@@ -1,4 +1,4 @@
----
+﻿---
 title: "ANALIZADOR ELECTORAL"
 author: 'Por: Analista de Datos'
 output: html_document
@@ -117,15 +117,7 @@ knitr::kable(resumen_prov)  # Imprime tabla de resultados con formato
 
 
 
-## 1.2 Mapa de provincias ganadas por coalisión de partidos
 
-# 2. Comparacion con  elecciones 2008,2010 y 2012
-
-
-# 3. Proyeccion de Resultados
-
-## 3.1 Diagrama de radar de boletines
-## 3.2 Diagrama paralelo de boletines
 
 # 4. Pruebas de deteccion de fraude
 
